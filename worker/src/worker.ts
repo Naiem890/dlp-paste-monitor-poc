@@ -1,8 +1,3 @@
-interface EvaluateRequest {
-  pastedText: string;
-  destinationUrl: string;
-}
-
 interface EvaluateResponse {
   risk: "High Risk" | "Medium Risk" | "Low Risk" | "Safe";
   ccDetected: boolean;
@@ -38,8 +33,12 @@ function luhnCheck(digits: string): boolean {
 }
 
 function isRiskyDomain(url: string): boolean {
-  const lower = url.toLowerCase();
-  return RISKY_DOMAINS.some((domain) => lower.includes(domain));
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return RISKY_DOMAINS.some((domain) => hostname === domain || hostname.endsWith("." + domain));
+  } catch {
+    return false;
+  }
 }
 
 function evaluateRisk(ccDetected: boolean, riskyDomain: boolean): EvaluateResponse["risk"] {
