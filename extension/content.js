@@ -62,6 +62,7 @@
   }
 
   function showTooltip() {
+    if (!document.body) return;
     var pos = getTooltipPosition();
     var host = createTooltip();
 
