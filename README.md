@@ -2,17 +2,29 @@
 
 A corporate Data Loss Prevention proof of concept consisting of:
 
-1. **Chrome MV3 Extension** — Detects paste events, sends pasted content to the edge triage engine, and displays a color-coded risk assessment inside a Shadow DOM-protected tooltip
+1. **Chrome MV3 Extension** — Detects paste events via `clipboardRead` permission, sends pasted content to the edge triage engine, and displays a color-coded risk assessment inside a Shadow DOM-protected tooltip
 2. **Cloudflare Worker** — Edge-deployed triage engine that evaluates text for credit card patterns and risky destination domains
 
 ## How It Works
 
 1. User pastes text on any website
-2. Extension captures the pasted text and current page URL
-3. Sends payload to the deployed Cloudflare Worker for evaluation
-4. Worker checks for credit card patterns (regex + Luhn) and risky domains (pastebin.com, reddit.com)
-5. Tooltip updates with the risk result — color-coded: **red** (High), **amber** (Medium), **blue** (Low), **green** (Safe)
-6. Falls back to "Payload Evaluated" if the worker is unreachable
+2. Content script captures clipboard text using `event.clipboardData` (primary) or `navigator.clipboard.readText()` (fallback via `clipboardRead` permission)
+3. Content script sends the text to the background service worker via `chrome.runtime.sendMessage`
+4. Background service worker forwards the payload to the deployed Cloudflare Worker for evaluation
+5. Worker checks for credit card patterns (regex + Luhn) and risky domains (pastebin.com, reddit.com)
+6. Tooltip updates with the risk result — color-coded: **red** (High), **amber** (Medium), **blue** (Low), **green** (Safe)
+7. Clipboard data is immediately discarded after evaluation — **zero retention**
+
+## Zero-Retention `clipboardRead` Compliance
+
+This extension requests the `clipboardRead` permission and is designed to pass Chrome Web Store's manual review:
+
+- **In-memory only** — Clipboard data is never written to `localStorage`, `IndexedDB`, cookies, or any persistent storage
+- **No logging** — Clipboard contents are never logged to `console` or any telemetry endpoint
+- **Scoped lifecycle** — The variable holding clipboard text exists only within the paste event handler and is garbage collected after evaluation completes
+- **No background retention** — The background service worker receives the text, forwards it to the triage endpoint, and discards it. No caching.
+- **Transparent data flow** — Content script → background service worker → Cloudflare Worker → risk response. The pasted text is only sent to the triage endpoint and nowhere else.
+- **Manifest description** — Clearly states the purpose: "Uses clipboardRead for zero-retention in-memory payload evaluation only"
 
 ## Chrome Extension Setup
 
@@ -86,11 +98,12 @@ Cloudflare Workers execute on 300+ edge Points of Presence worldwide using V8 is
 
 ## Build & Minification Strategy
 
-The extension uses [Terser](https://github.com/terser/terser) for direct minification rather than a full bundler (Webpack, Vite). This is a deliberate choice for the PoC scope — a single content script does not warrant the complexity of a build pipeline, and keeping the toolchain minimal reduces the attack surface for a security-focused product. The unminified source (`content.js`) is included alongside the minified output (`content.min.js`) for easy code review. For the full MVP — with multiple scripts, a background service worker, and React components — we would introduce Vite or Webpack as the build system.
+The extension uses [Terser](https://github.com/terser/terser) for direct minification rather than a full bundler (Webpack, Vite). This is a deliberate choice for the PoC scope — the extension has only two scripts (content + background service worker) which do not warrant the complexity of a build pipeline. Keeping the toolchain minimal reduces the attack surface for a security-focused product. The unminified sources (`content.js`, `background.js`) are included alongside their minified outputs for easy code review. For the full MVP — with multiple scripts, React components, and AES encryption — we would introduce Vite or Webpack as the build system.
 
 ## Architecture Decisions
 
-- **No `clipboardRead` permission** — Listens to DOM `paste` events, avoiding Chrome Web Store manual review for the `clipboardRead` permission
+- **`clipboardRead` with zero retention** — Uses the permission for clipboard access, processes data in-memory only, never persists. Designed to pass Chrome Web Store manual review.
+- **Background service worker** — Handles triage API calls from the content script, keeping network logic out of the page context
 - **Closed Shadow Root** — Host page cannot access tooltip DOM or restyle it via `host.shadowRoot` (returns `null`)
 - **No `innerHTML`** — All DOM manipulation via `createElement` + `textContent` to prevent XSS
 - **Zero runtime dependencies** — Both extension and worker have no npm dependencies in production code

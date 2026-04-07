@@ -1,7 +1,6 @@
 "use strict";
 
 (function () {
-  var WORKER_URL = "https://dlp-triage-worker.solaiman-naiem890.workers.dev/evaluate";
   var TOOLTIP_DISPLAY_MS = 3000;
   var FADE_OUT_MS = 250;
   var VIEWPORT_PADDING = 8;
@@ -175,6 +174,25 @@
     }, TOOLTIP_DISPLAY_MS);
   }
 
+  // --- Clipboard Reading ---
+
+  function readClipboardText(event) {
+    // Primary: use event.clipboardData (synchronous, available in paste handler)
+    if (event.clipboardData) {
+      var text = event.clipboardData.getData("text/plain");
+      if (text) return Promise.resolve(text);
+    }
+
+    // Fallback: use Async Clipboard API (requires clipboardRead permission)
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      return navigator.clipboard.readText().catch(function () {
+        return "";
+      });
+    }
+
+    return Promise.resolve("");
+  }
+
   // --- Main ---
 
   function formatLabel(data) {
@@ -199,35 +217,32 @@
       return;
     }
 
-    fetch(WORKER_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    // Send to background service worker for zero-retention evaluation
+    chrome.runtime.sendMessage(
+      {
+        type: "EVALUATE_PASTE",
         pastedText: pastedText,
         destinationUrl: window.location.href,
-      }),
-    })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
+      },
+      function (response) {
         if (!host.parentNode) return;
-        updateTooltip(parts, formatLabel(data), data.risk);
+        if (response && response.risk) {
+          updateTooltip(parts, formatLabel(response), response.risk);
+        } else {
+          updateTooltip(parts, "Payload Evaluated", null);
+        }
         clampToViewport(host, getTooltipPosition());
         scheduleRemoval(host, parts.tooltip);
-      })
-      .catch(function () {
-        if (!host.parentNode) return;
-        updateTooltip(parts, "Payload Evaluated", null);
-        scheduleRemoval(host, parts.tooltip);
-      });
+      }
+    );
   }
 
   document.addEventListener("paste", function (event) {
-    var pastedText = event.clipboardData
-      ? event.clipboardData.getData("text/plain")
-      : "";
-    requestAnimationFrame(function () {
+    readClipboardText(event).then(function (text) {
       requestAnimationFrame(function () {
-        showTooltip(pastedText);
+        requestAnimationFrame(function () {
+          showTooltip(text);
+        });
       });
     });
   });

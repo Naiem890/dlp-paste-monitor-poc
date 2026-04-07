@@ -2,7 +2,11 @@
   "manifest_version": 3,
   "name": "DLP Paste Monitor PoC",
   "version": "1.0.0",
-  "description": "Proof of concept — monitors paste events and displays a Shadow DOM tooltip.",
+  "description": "Proof of concept — monitors paste events and displays a Shadow DOM tooltip. Uses clipboardRead for zero-retention in-memory payload evaluation only.",
+  "permissions": ["clipboardRead"],
+  "background": {
+    "service_worker": "background.min.js"
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
