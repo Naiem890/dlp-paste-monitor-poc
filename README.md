@@ -2,8 +2,17 @@
 
 A corporate Data Loss Prevention proof of concept consisting of:
 
-1. **Chrome MV3 Extension** — Detects paste events and displays a Shadow DOM-protected tooltip
-2. **Cloudflare Worker** — Edge-deployed triage engine that evaluates text for credit card patterns and risky domains
+1. **Chrome MV3 Extension** — Detects paste events, sends pasted content to the edge triage engine, and displays a color-coded risk assessment inside a Shadow DOM-protected tooltip
+2. **Cloudflare Worker** — Edge-deployed triage engine that evaluates text for credit card patterns and risky destination domains
+
+## How It Works
+
+1. User pastes text on any website
+2. Extension captures the pasted text and current page URL
+3. Sends payload to the deployed Cloudflare Worker for evaluation
+4. Worker checks for credit card patterns (regex + Luhn) and risky domains (pastebin.com, reddit.com)
+5. Tooltip updates with the risk result — color-coded: **red** (High), **amber** (Medium), **blue** (Low), **green** (Safe)
+6. Falls back to "Payload Evaluated" if the worker is unreachable
 
 ## Chrome Extension Setup
 
@@ -12,7 +21,7 @@ A corporate Data Loss Prevention proof of concept consisting of:
 3. Click **Load unpacked**
 4. Select the `extension/` directory from this repository
 5. Navigate to any website with a text input and paste some text
-6. A floating tooltip reading **"Payload Evaluated"** will appear near the cursor for 3 seconds
+6. A floating tooltip will appear near the cursor showing the risk assessment
 
 ### Shadow DOM Verification
 
@@ -22,22 +31,22 @@ The tooltip is injected inside a closed Shadow Root. To verify it survives hosti
 2. Run: `document.querySelectorAll('div').forEach(d => d.style.display = 'none')`
 3. Paste text — the tooltip still appears
 
-## Cloudflare Worker Setup
+## Cloudflare Worker
+
+**Live endpoint:** `https://dlp-triage-worker.solaiman-naiem890.workers.dev/evaluate`
+
+### Local Development
 
 ```bash
 cd worker
 npm install
-```
-
-### Run Locally
-
-```bash
 npm run dev
 ```
 
 ### Run Tests
 
 ```bash
+cd worker
 npm test
 ```
 
@@ -45,14 +54,28 @@ npm test
 
 **High Risk** — Credit card pasted to pastebin:
 ```bash
-curl -X POST http://localhost:8787/evaluate \
+curl -X POST https://dlp-triage-worker.solaiman-naiem890.workers.dev/evaluate \
   -H "Content-Type: application/json" \
   -d '{"pastedText": "4111111111111111", "destinationUrl": "https://pastebin.com/new"}'
 ```
 
+**Medium Risk** — Credit card pasted to safe domain:
+```bash
+curl -X POST https://dlp-triage-worker.solaiman-naiem890.workers.dev/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"pastedText": "4111111111111111", "destinationUrl": "https://internal-crm.local"}'
+```
+
+**Low Risk** — Normal text pasted to risky domain:
+```bash
+curl -X POST https://dlp-triage-worker.solaiman-naiem890.workers.dev/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"pastedText": "hello world", "destinationUrl": "https://reddit.com/r/test"}'
+```
+
 **Safe** — Normal text pasted to internal domain:
 ```bash
-curl -X POST http://localhost:8787/evaluate \
+curl -X POST https://dlp-triage-worker.solaiman-naiem890.workers.dev/evaluate \
   -H "Content-Type: application/json" \
   -d '{"pastedText": "hello world", "destinationUrl": "https://internal-crm.local/notes"}'
 ```
@@ -67,8 +90,10 @@ The extension uses [Terser](https://github.com/terser/terser) for direct minific
 
 ## Architecture Decisions
 
-- **No `clipboardRead` permission** — Listens to DOM `paste` events, avoiding Chrome Web Store manual review
-- **Closed Shadow Root** — Host page cannot access tooltip DOM or restyle it
+- **No `clipboardRead` permission** — Listens to DOM `paste` events, avoiding Chrome Web Store manual review for the `clipboardRead` permission
+- **Closed Shadow Root** — Host page cannot access tooltip DOM or restyle it via `host.shadowRoot` (returns `null`)
 - **No `innerHTML`** — All DOM manipulation via `createElement` + `textContent` to prevent XSS
 - **Zero runtime dependencies** — Both extension and worker have no npm dependencies in production code
 - **Non-blocking paste** — `preventDefault()` is never called; paste completes normally
+- **CORS enabled** — Worker accepts cross-origin requests from the extension with proper preflight handling
+- **Graceful degradation** — Extension falls back to static "Payload Evaluated" if worker is unreachable
