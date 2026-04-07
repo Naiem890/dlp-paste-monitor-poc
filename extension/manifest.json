@@ -7,7 +7,8 @@
     {
       "matches": ["<all_urls>"],
       "js": ["content.min.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ],
   "icons": {
