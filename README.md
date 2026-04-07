@@ -61,6 +61,10 @@ curl -X POST http://localhost:8787/evaluate \
 
 Cloudflare Workers execute on 300+ edge Points of Presence worldwide using V8 isolates — not containers. Unlike traditional serverless (AWS Lambda), V8 isolates have near-zero cold start overhead because they share a single runtime process. Our worker performs only synchronous CPU-bound operations: regex matching and Luhn checksum validation. There are no database queries, no external API calls, and no KV lookups. The entire evaluation completes in under 1ms of CPU time. Combined with Cloudflare's anycast routing — which directs each request to the geographically nearest PoP — total response time including network latency stays well under 50ms globally.
 
+## Build & Minification Strategy
+
+The extension uses [Terser](https://github.com/terser/terser) for direct minification rather than a full bundler (Webpack, Vite). This is a deliberate choice for the PoC scope — a single content script does not warrant the complexity of a build pipeline, and keeping the toolchain minimal reduces the attack surface for a security-focused product. The unminified source (`content.js`) is included alongside the minified output (`content.min.js`) for easy code review. For the full MVP — with multiple scripts, a background service worker, and React components — we would introduce Vite or Webpack as the build system.
+
 ## Architecture Decisions
 
 - **No `clipboardRead` permission** — Listens to DOM `paste` events, avoiding Chrome Web Store manual review
