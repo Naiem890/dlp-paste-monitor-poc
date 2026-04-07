@@ -43,69 +43,29 @@
 
     var styleEl = document.createElement("style");
     styleEl.textContent = [
-      "@keyframes dlp-fade-in {",
-      "  from { opacity: 0; transform: translateY(6px); }",
-      "  to { opacity: 1; transform: translateY(0); }",
-      "}",
-      "@keyframes dlp-fade-out {",
-      "  from { opacity: 1; transform: translateY(0); }",
-      "  to { opacity: 0; transform: translateY(-4px); }",
-      "}",
-      "@keyframes dlp-pulse {",
-      "  0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,0.25), 0 0 0 0 rgba(76,175,80,0.4); }",
-      "  50% { box-shadow: 0 2px 8px rgba(0,0,0,0.25), 0 0 0 6px rgba(76,175,80,0); }",
-      "}",
-      ".dlp-tooltip {",
+      "@keyframes dlp-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }",
+      "@keyframes dlp-out { from { opacity: 1; } to { opacity: 0; } }",
+      ".t {",
       "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
-      "  font-size: 13px;",
-      "  color: #ffffff;",
-      "  background: linear-gradient(135deg, rgba(30,30,30,0.95), rgba(50,50,50,0.95));",
-      "  padding: 7px 14px;",
-      "  border-radius: 8px;",
-      "  border-left: 3px solid #4CAF50;",
+      "  font-size: 11px;",
+      "  font-weight: 500;",
+      "  color: rgba(255,255,255,0.85);",
+      "  background: rgba(0,0,0,0.75);",
+      "  backdrop-filter: blur(8px);",
+      "  -webkit-backdrop-filter: blur(8px);",
+      "  padding: 5px 10px;",
+      "  border-radius: 4px;",
       "  white-space: nowrap;",
       "  pointer-events: none;",
-      "  line-height: 1.4;",
-      "  letter-spacing: 0.3px;",
-      "  animation: dlp-fade-in 0.25s ease-out, dlp-pulse 1.5s ease-in-out 0.3s 2;",
+      "  line-height: 1;",
+      "  animation: dlp-in 0.15s ease-out;",
       "}",
-      ".dlp-tooltip.dlp-exit {",
-      "  animation: dlp-fade-out 0.3s ease-in forwards;",
-      "}",
-      ".dlp-icon {",
-      "  display: inline-block;",
-      "  width: 14px;",
-      "  height: 14px;",
-      "  margin-right: 6px;",
-      "  vertical-align: -2px;",
-      "  border-radius: 50%;",
-      "  background: #4CAF50;",
-      "  position: relative;",
-      "}",
-      ".dlp-icon::after {",
-      "  content: '';",
-      "  position: absolute;",
-      "  left: 4px;",
-      "  top: 2px;",
-      "  width: 4px;",
-      "  height: 7px;",
-      "  border: solid #fff;",
-      "  border-width: 0 2px 2px 0;",
-      "  transform: rotate(45deg);",
-      "}",
+      ".t.out { animation: dlp-out 0.2s ease-in forwards; }",
     ].join("\n");
 
     var tooltip = document.createElement("div");
-    tooltip.className = "dlp-tooltip";
-
-    var icon = document.createElement("span");
-    icon.className = "dlp-icon";
-
-    var text = document.createElement("span");
-    text.textContent = "Payload Evaluated";
-
-    tooltip.appendChild(icon);
-    tooltip.appendChild(text);
+    tooltip.className = "t";
+    tooltip.textContent = "Payload Evaluated";
 
     shadow.appendChild(styleEl);
     shadow.appendChild(tooltip);
@@ -123,8 +83,8 @@
     currentTooltip = host;
 
     var hostRect = host.getBoundingClientRect();
-    var tooltipHeight = hostRect.height || 30;
-    var tooltipWidth = hostRect.width || 160;
+    var tooltipHeight = hostRect.height || 24;
+    var tooltipWidth = hostRect.width || 120;
 
     var maxTop = window.scrollY + window.innerHeight - tooltipHeight - 8;
     var maxLeft = window.scrollX + window.innerWidth - tooltipWidth - 8;
@@ -142,11 +102,11 @@
 
     setTimeout(function () {
       if (!host.parentNode) return;
-      tip.classList.add("dlp-exit");
+      tip.classList.add("out");
       setTimeout(function () {
         if (host.parentNode) host.parentNode.removeChild(host);
         if (currentTooltip === host) currentTooltip = null;
-      }, 300);
+      }, 200);
     }, 3000);
   }
 
