@@ -9,12 +9,17 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "wrangler": "^3.99.0",
-    "vitest": "^3.1.1",
     "@cloudflare/vitest-pool-workers": "^0.8.0",
-    "typescript": "^5.8.0"
+    "@cloudflare/workers-types": "^4.20260405.1",
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.1",
+    "wrangler": "^3.99.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "sharp", "workerd"]
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "workerd"
+    ]
   }
 }
