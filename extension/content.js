@@ -14,36 +14,42 @@
   };
   var DEFAULT_COLOR = "#a1a1aa";
 
-  var TOOLTIP_CSS = [
-    "@keyframes dlp-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }",
-    "@keyframes dlp-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-3px); } }",
-    ".dlp {",
-    "  display: inline-flex;",
-    "  align-items: center;",
-    "  gap: 7px;",
-    "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
-    "  font-size: 12px;",
-    "  font-weight: 500;",
-    "  color: #e8e8e8;",
-    "  background: rgba(24, 24, 27, 0.92);",
-    "  backdrop-filter: blur(12px);",
-    "  -webkit-backdrop-filter: blur(12px);",
-    "  padding: 6px 12px;",
-    "  border-radius: 6px;",
-    "  box-shadow: 0 4px 12px rgba(0,0,0,0.3);",
-    "  white-space: nowrap;",
-    "  pointer-events: none;",
-    "  line-height: 1;",
-    "  animation: dlp-in 0.2s ease-out;",
-    "}",
-    ".dlp.out { animation: dlp-out 0.25s ease-in forwards; }",
-    ".dot {",
-    "  width: 6px;",
-    "  height: 6px;",
-    "  border-radius: 50%;",
-    "  flex-shrink: 0;",
-    "}",
-  ].join("\n");
+  var TOOLTIP_CSS = `
+    @keyframes dlp-in {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes dlp-out {
+      from { opacity: 1; transform: translateY(0); }
+      to { opacity: 0; transform: translateY(-3px); }
+    }
+    .dlp {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: #e8e8e8;
+      background: rgba(24, 24, 27, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: 6px 12px;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      white-space: nowrap;
+      pointer-events: none;
+      line-height: 1;
+      animation: dlp-in 0.2s ease-out;
+    }
+    .dlp.out { animation: dlp-out 0.25s ease-in forwards; }
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+  `;
 
   var currentTooltip = null;
 
