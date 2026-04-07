@@ -1,16 +1,17 @@
 "use strict";
 
 (function () {
-  let currentTooltip = null;
+  var WORKER_URL = "https://dlp-triage-worker.solaiman-naiem890.workers.dev/evaluate";
+  var currentTooltip = null;
 
   function getTooltipPosition() {
-    const active = document.activeElement;
+    var active = document.activeElement;
     if (!active) return { top: 100, left: 100 };
 
-    const sel = window.getSelection();
+    var sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
-      const range = sel.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
+      var range = sel.getRangeAt(0);
+      var rect = range.getBoundingClientRect();
       if (rect.width > 0 || rect.height > 0) {
         return {
           top: rect.bottom + window.scrollY + 4,
@@ -19,10 +20,10 @@
       }
     }
 
-    const rect = active.getBoundingClientRect();
+    var elRect = active.getBoundingClientRect();
     return {
-      top: rect.bottom + window.scrollY + 4,
-      left: rect.right + window.scrollX - 160,
+      top: elRect.bottom + window.scrollY + 4,
+      left: elRect.right + window.scrollX - 160,
     };
   }
 
@@ -33,13 +34,22 @@
     currentTooltip = null;
   }
 
-  function createTooltip() {
+  function createTooltip(label, riskLevel) {
     removeExistingTooltip();
 
     var host = document.createElement("div");
     host.setAttribute("style", "all: initial; position: absolute; z-index: 2147483647; pointer-events: none;");
 
     var shadow = host.attachShadow({ mode: "closed" });
+
+    var colors = {
+      "High Risk": { dot: "#ef4444", border: "#ef4444" },
+      "Medium Risk": { dot: "#f59e0b", border: "#f59e0b" },
+      "Low Risk": { dot: "#3b82f6", border: "#3b82f6" },
+      "Safe": { dot: "#22c55e", border: "#22c55e" },
+      "default": { dot: "#a1a1aa", border: "#a1a1aa" },
+    };
+    var scheme = colors[riskLevel] || colors["default"];
 
     var styleEl = document.createElement("style");
     styleEl.textContent = [
@@ -58,7 +68,7 @@
       "  -webkit-backdrop-filter: blur(12px);",
       "  padding: 6px 12px;",
       "  border-radius: 6px;",
-      "  border-left: 2px solid #22c55e;",
+      "  border-left: 2px solid " + scheme.border + ";",
       "  box-shadow: 0 4px 12px rgba(0,0,0,0.3);",
       "  white-space: nowrap;",
       "  pointer-events: none;",
@@ -70,7 +80,7 @@
       "  width: 6px;",
       "  height: 6px;",
       "  border-radius: 50%;",
-      "  background: #22c55e;",
+      "  background: " + scheme.dot + ";",
       "  flex-shrink: 0;",
       "}",
     ].join("\n");
@@ -82,25 +92,18 @@
     dot.className = "dot";
 
     var text = document.createElement("span");
-    text.textContent = "Payload Evaluated";
+    text.textContent = label;
 
     tooltip.appendChild(dot);
     tooltip.appendChild(text);
 
     shadow.appendChild(styleEl);
     shadow.appendChild(tooltip);
-    return { host: host, tooltip: tooltip };
+    return { host: host, tooltip: tooltip, textEl: text, dotEl: dot, styleEl: styleEl };
   }
 
-  function showTooltip() {
-    if (!document.body) return;
+  function positionHost(host) {
     var pos = getTooltipPosition();
-    var result = createTooltip();
-    var host = result.host;
-    var tip = result.tooltip;
-
-    document.body.appendChild(host);
-    currentTooltip = host;
 
     var hostRect = host.getBoundingClientRect();
     var tooltipHeight = hostRect.height || 28;
@@ -119,7 +122,27 @@
 
     host.style.top = top + "px";
     host.style.left = left + "px";
+  }
 
+  function updateTooltip(parts, label, riskLevel) {
+    var colors = {
+      "High Risk": { dot: "#ef4444", border: "#ef4444" },
+      "Medium Risk": { dot: "#f59e0b", border: "#f59e0b" },
+      "Low Risk": { dot: "#3b82f6", border: "#3b82f6" },
+      "Safe": { dot: "#22c55e", border: "#22c55e" },
+      "default": { dot: "#a1a1aa", border: "#a1a1aa" },
+    };
+    var scheme = colors[riskLevel] || colors["default"];
+
+    parts.textEl.textContent = label;
+    parts.dotEl.style.background = scheme.dot;
+    parts.styleEl.textContent = parts.styleEl.textContent
+      .replace(/border-left: 2px solid [^;]+;/, "border-left: 2px solid " + scheme.border + ";");
+
+    positionHost(parts.host);
+  }
+
+  function scheduleRemoval(host, tip) {
     setTimeout(function () {
       if (!host.parentNode) return;
       tip.classList.add("out");
@@ -130,10 +153,58 @@
     }, 3000);
   }
 
-  document.addEventListener("paste", function () {
+  function getPastedText(event) {
+    if (event.clipboardData) {
+      return event.clipboardData.getData("text/plain");
+    }
+    return "";
+  }
+
+  function showTooltip(pastedText) {
+    if (!document.body) return;
+
+    var result = createTooltip("Evaluating\u2026", null);
+    var host = result.host;
+    var tip = result.tooltip;
+
+    document.body.appendChild(host);
+    currentTooltip = host;
+    positionHost(host);
+
+    var destinationUrl = window.location.href;
+
+    if (pastedText) {
+      fetch(WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pastedText: pastedText,
+          destinationUrl: destinationUrl,
+        }),
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (!host.parentNode) return;
+          var label = data.risk || "Payload Evaluated";
+          updateTooltip(result, label, data.risk);
+          scheduleRemoval(host, tip);
+        })
+        .catch(function () {
+          if (!host.parentNode) return;
+          updateTooltip(result, "Payload Evaluated", null);
+          scheduleRemoval(host, tip);
+        });
+    } else {
+      updateTooltip(result, "Payload Evaluated", null);
+      scheduleRemoval(host, tip);
+    }
+  }
+
+  document.addEventListener("paste", function (event) {
+    var pastedText = getPastedText(event);
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
-        showTooltip();
+        showTooltip(pastedText);
       });
     });
   });

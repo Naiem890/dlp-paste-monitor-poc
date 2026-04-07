@@ -8,8 +8,20 @@ interface EvaluateResponse {
 
 const RISKY_DOMAINS = ["pastebin.com", "reddit.com"];
 
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+function jsonResponse(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+  });
+}
+
 function detectCreditCard(text: string): boolean {
-  // Match digit sequences (13-19 digits) possibly separated by spaces or dashes
   const match = text.match(/\d[\d\s-]{11,17}\d/);
   if (!match) return false;
   const digits = match[0].replace(/[\s-]/g, "");
@@ -50,30 +62,25 @@ function evaluateRisk(ccDetected: boolean, riskyDomain: boolean): EvaluateRespon
 
 export default {
   async fetch(request: Request): Promise<Response> {
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+
     if (request.method !== "POST") {
-      return new Response(JSON.stringify({ error: "Method not allowed" }), {
-        status: 405,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Method not allowed" }, 405);
     }
 
     let body: unknown;
     try {
       body = await request.json();
     } catch {
-      return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Invalid JSON" }, 400);
     }
 
     const { pastedText, destinationUrl } = body as Record<string, unknown>;
 
     if (typeof pastedText !== "string" || typeof destinationUrl !== "string") {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields: pastedText, destinationUrl" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: "Missing required fields: pastedText, destinationUrl" }, 400);
     }
 
     const ccDetected = detectCreditCard(pastedText);
@@ -88,9 +95,6 @@ export default {
       timestamp: new Date().toISOString(),
     };
 
-    return new Response(JSON.stringify(response), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse(response, 200);
   },
 };
