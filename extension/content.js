@@ -8,6 +8,15 @@
     var active = document.activeElement;
     if (!active) return { top: 100, left: 100 };
 
+    var tag = active.tagName;
+    if (tag === "TEXTAREA" || tag === "INPUT") {
+      var elRect = active.getBoundingClientRect();
+      return {
+        top: elRect.top + window.scrollY - 30,
+        left: elRect.right + window.scrollX - 180,
+      };
+    }
+
     var sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
       var range = sel.getRangeAt(0);
@@ -20,10 +29,10 @@
       }
     }
 
-    var elRect = active.getBoundingClientRect();
+    var fallbackRect = active.getBoundingClientRect();
     return {
-      top: elRect.bottom + window.scrollY + 4,
-      left: elRect.right + window.scrollX - 160,
+      top: fallbackRect.top + window.scrollY - 30,
+      left: fallbackRect.right + window.scrollX - 180,
     };
   }
 
