@@ -131,6 +131,10 @@
   }
 
   document.addEventListener("paste", function () {
-    showTooltip();
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        showTooltip();
+      });
+    });
   });
 })();
