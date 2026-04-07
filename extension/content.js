@@ -185,7 +185,8 @@
         .then(function (res) { return res.json(); })
         .then(function (data) {
           if (!host.parentNode) return;
-          var label = "Payload Evaluated: " + (data.risk || "Unknown");
+          var risk = (data.risk || "Unknown").replace(" Risk", "");
+          var label = "Payload Evaluated: " + risk;
           updateTooltip(result, label, data.risk);
           scheduleRemoval(host, tip);
         })
