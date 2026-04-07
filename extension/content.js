@@ -66,11 +66,26 @@
     var pos = getTooltipPosition();
     var host = createTooltip();
 
-    host.style.top = pos.top + "px";
-    host.style.left = pos.left + "px";
-
     document.body.appendChild(host);
     currentTooltip = host;
+
+    var hostRect = host.getBoundingClientRect();
+    var tooltipHeight = hostRect.height || 30;
+    var tooltipWidth = hostRect.width || 160;
+
+    var maxTop = window.scrollY + window.innerHeight - tooltipHeight - 8;
+    var maxLeft = window.scrollX + window.innerWidth - tooltipWidth - 8;
+
+    var top = Math.max(window.scrollY + 8, Math.min(pos.top, maxTop));
+    var left = Math.max(window.scrollX + 8, Math.min(pos.left, maxLeft));
+
+    if (pos.top > maxTop) {
+      top = pos.top - tooltipHeight - 8;
+      if (top < window.scrollY + 8) top = window.scrollY + 8;
+    }
+
+    host.style.top = top + "px";
+    host.style.left = left + "px";
 
     setTimeout(function () {
       if (host.parentNode) {
