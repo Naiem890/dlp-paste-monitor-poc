@@ -2,7 +2,57 @@
 
 (function () {
   var WORKER_URL = "https://dlp-triage-worker.solaiman-naiem890.workers.dev/evaluate";
+  var TOOLTIP_DISPLAY_MS = 3000;
+  var FADE_OUT_MS = 250;
+  var VIEWPORT_PADDING = 8;
+  var TOOLTIP_OFFSET = 4;
+
+  var RISK_COLORS = {
+    "High Risk": "#ef4444",
+    "Medium Risk": "#f59e0b",
+    "Low Risk": "#3b82f6",
+    "Safe": "#22c55e",
+  };
+  var DEFAULT_COLOR = "#a1a1aa";
+
+  var TOOLTIP_CSS = [
+    "@keyframes dlp-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }",
+    "@keyframes dlp-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-3px); } }",
+    ".dlp {",
+    "  display: inline-flex;",
+    "  align-items: center;",
+    "  gap: 7px;",
+    "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
+    "  font-size: 12px;",
+    "  font-weight: 500;",
+    "  color: #e8e8e8;",
+    "  background: rgba(24, 24, 27, 0.92);",
+    "  backdrop-filter: blur(12px);",
+    "  -webkit-backdrop-filter: blur(12px);",
+    "  padding: 6px 12px;",
+    "  border-radius: 6px;",
+    "  box-shadow: 0 4px 12px rgba(0,0,0,0.3);",
+    "  white-space: nowrap;",
+    "  pointer-events: none;",
+    "  line-height: 1;",
+    "  animation: dlp-in 0.2s ease-out;",
+    "}",
+    ".dlp.out { animation: dlp-out 0.25s ease-in forwards; }",
+    ".dot {",
+    "  width: 6px;",
+    "  height: 6px;",
+    "  border-radius: 50%;",
+    "  flex-shrink: 0;",
+    "}",
+  ].join("\n");
+
   var currentTooltip = null;
+
+  // --- Positioning ---
+
+  function getScrollOffset() {
+    return { x: window.scrollX, y: window.scrollY };
+  }
 
   function getTooltipPosition() {
     var active = document.activeElement;
@@ -10,208 +60,171 @@
 
     var tag = active.tagName;
     if (tag === "TEXTAREA" || tag === "INPUT") {
-      var elRect = active.getBoundingClientRect();
-      return {
-        top: elRect.top + window.scrollY - 30,
-        left: elRect.right + window.scrollX - 180,
-      };
+      return positionFromElement(active);
     }
 
     var sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
-      var range = sel.getRangeAt(0);
-      var rect = range.getBoundingClientRect();
+      var rect = sel.getRangeAt(0).getBoundingClientRect();
       if (rect.width > 0 || rect.height > 0) {
+        var scroll = getScrollOffset();
         return {
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
+          top: rect.bottom + scroll.y + TOOLTIP_OFFSET,
+          left: rect.left + scroll.x,
         };
       }
     }
 
-    var fallbackRect = active.getBoundingClientRect();
+    return positionFromElement(active);
+  }
+
+  function positionFromElement(el) {
+    var rect = el.getBoundingClientRect();
+    var scroll = getScrollOffset();
     return {
-      top: fallbackRect.top + window.scrollY - 30,
-      left: fallbackRect.right + window.scrollX - 180,
+      top: rect.top + scroll.y - 30,
+      left: rect.right + scroll.x - 180,
     };
   }
 
-  function removeExistingTooltip() {
-    if (currentTooltip && currentTooltip.parentNode) {
-      currentTooltip.parentNode.removeChild(currentTooltip);
-    }
-    currentTooltip = null;
-  }
-
-  function createTooltip(label, riskLevel) {
-    removeExistingTooltip();
-
-    var host = document.createElement("div");
-    host.setAttribute("style", "all: initial; position: absolute; z-index: 2147483647; pointer-events: none;");
-
-    var shadow = host.attachShadow({ mode: "closed" });
-
-    var colors = {
-      "High Risk": { dot: "#ef4444", border: "#ef4444" },
-      "Medium Risk": { dot: "#f59e0b", border: "#f59e0b" },
-      "Low Risk": { dot: "#3b82f6", border: "#3b82f6" },
-      "Safe": { dot: "#22c55e", border: "#22c55e" },
-      "default": { dot: "#a1a1aa", border: "#a1a1aa" },
-    };
-    var scheme = colors[riskLevel] || colors["default"];
-
-    var styleEl = document.createElement("style");
-    styleEl.textContent = [
-      "@keyframes dlp-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }",
-      "@keyframes dlp-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-3px); } }",
-      ".dlp {",
-      "  display: inline-flex;",
-      "  align-items: center;",
-      "  gap: 7px;",
-      "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
-      "  font-size: 12px;",
-      "  font-weight: 500;",
-      "  color: #e8e8e8;",
-      "  background: rgba(24, 24, 27, 0.92);",
-      "  backdrop-filter: blur(12px);",
-      "  -webkit-backdrop-filter: blur(12px);",
-      "  padding: 6px 12px;",
-      "  border-radius: 6px;",
-      "  border-left: 2px solid " + scheme.border + ";",
-      "  box-shadow: 0 4px 12px rgba(0,0,0,0.3);",
-      "  white-space: nowrap;",
-      "  pointer-events: none;",
-      "  line-height: 1;",
-      "  animation: dlp-in 0.2s ease-out;",
-      "}",
-      ".dlp.out { animation: dlp-out 0.25s ease-in forwards; }",
-      ".dot {",
-      "  width: 6px;",
-      "  height: 6px;",
-      "  border-radius: 50%;",
-      "  background: " + scheme.dot + ";",
-      "  flex-shrink: 0;",
-      "}",
-    ].join("\n");
-
-    var tooltip = document.createElement("div");
-    tooltip.className = "dlp";
-
-    var dot = document.createElement("span");
-    dot.className = "dot";
-
-    var text = document.createElement("span");
-    text.textContent = label;
-
-    tooltip.appendChild(dot);
-    tooltip.appendChild(text);
-
-    shadow.appendChild(styleEl);
-    shadow.appendChild(tooltip);
-    return { host: host, tooltip: tooltip, textEl: text, dotEl: dot, styleEl: styleEl };
-  }
-
-  function positionHost(host) {
-    var pos = getTooltipPosition();
-
+  function clampToViewport(host, pos) {
+    var scroll = getScrollOffset();
     var hostRect = host.getBoundingClientRect();
-    var tooltipHeight = hostRect.height || 28;
-    var tooltipWidth = hostRect.width || 150;
+    var h = hostRect.height || 28;
+    var w = hostRect.width || 150;
 
-    var maxTop = window.scrollY + window.innerHeight - tooltipHeight - 8;
-    var maxLeft = window.scrollX + window.innerWidth - tooltipWidth - 8;
+    var maxTop = scroll.y + window.innerHeight - h - VIEWPORT_PADDING;
+    var maxLeft = scroll.x + window.innerWidth - w - VIEWPORT_PADDING;
+    var minTop = scroll.y + VIEWPORT_PADDING;
+    var minLeft = scroll.x + VIEWPORT_PADDING;
 
-    var top = Math.max(window.scrollY + 8, Math.min(pos.top, maxTop));
-    var left = Math.max(window.scrollX + 8, Math.min(pos.left, maxLeft));
+    var top = Math.max(minTop, Math.min(pos.top, maxTop));
+    var left = Math.max(minLeft, Math.min(pos.left, maxLeft));
 
     if (pos.top > maxTop) {
-      top = pos.top - tooltipHeight - 8;
-      if (top < window.scrollY + 8) top = window.scrollY + 8;
+      top = pos.top - h - VIEWPORT_PADDING;
+      if (top < minTop) top = minTop;
     }
 
     host.style.top = top + "px";
     host.style.left = left + "px";
   }
 
-  function updateTooltip(parts, label, riskLevel) {
-    var colors = {
-      "High Risk": { dot: "#ef4444", border: "#ef4444" },
-      "Medium Risk": { dot: "#f59e0b", border: "#f59e0b" },
-      "Low Risk": { dot: "#3b82f6", border: "#3b82f6" },
-      "Safe": { dot: "#22c55e", border: "#22c55e" },
-      "default": { dot: "#a1a1aa", border: "#a1a1aa" },
-    };
-    var scheme = colors[riskLevel] || colors["default"];
+  // --- Tooltip DOM ---
 
-    parts.textEl.textContent = label;
-    parts.dotEl.style.background = scheme.dot;
-    parts.styleEl.textContent = parts.styleEl.textContent
-      .replace(/border-left: 2px solid [^;]+;/, "border-left: 2px solid " + scheme.border + ";");
-
-    positionHost(parts.host);
+  function getColor(riskLevel) {
+    return RISK_COLORS[riskLevel] || DEFAULT_COLOR;
   }
 
-  function scheduleRemoval(host, tip) {
+  function createTooltipHost() {
+    var host = document.createElement("div");
+    host.setAttribute("style", "all: initial; position: absolute; z-index: 2147483647; pointer-events: none;");
+    return host;
+  }
+
+  function buildTooltipShadow(host, label, riskLevel) {
+    var shadow = host.attachShadow({ mode: "closed" });
+    var color = getColor(riskLevel);
+
+    var styleEl = document.createElement("style");
+    styleEl.textContent = TOOLTIP_CSS;
+
+    var tooltip = document.createElement("div");
+    tooltip.className = "dlp";
+    tooltip.style.borderLeft = "2px solid " + color;
+
+    var dot = document.createElement("span");
+    dot.className = "dot";
+    dot.style.background = color;
+
+    var textEl = document.createElement("span");
+    textEl.textContent = label;
+
+    tooltip.appendChild(dot);
+    tooltip.appendChild(textEl);
+    shadow.appendChild(styleEl);
+    shadow.appendChild(tooltip);
+
+    return { tooltip: tooltip, textEl: textEl, dot: dot };
+  }
+
+  // --- Tooltip Lifecycle ---
+
+  function removeExisting() {
+    if (currentTooltip && currentTooltip.parentNode) {
+      currentTooltip.parentNode.removeChild(currentTooltip);
+    }
+    currentTooltip = null;
+  }
+
+  function updateTooltip(parts, label, riskLevel) {
+    var color = getColor(riskLevel);
+    parts.textEl.textContent = label;
+    parts.dot.style.background = color;
+    parts.tooltip.style.borderLeft = "2px solid " + color;
+  }
+
+  function scheduleRemoval(host, tooltip) {
     setTimeout(function () {
       if (!host.parentNode) return;
-      tip.classList.add("out");
+      tooltip.classList.add("out");
       setTimeout(function () {
         if (host.parentNode) host.parentNode.removeChild(host);
         if (currentTooltip === host) currentTooltip = null;
-      }, 250);
-    }, 3000);
+      }, FADE_OUT_MS);
+    }, TOOLTIP_DISPLAY_MS);
   }
 
-  function getPastedText(event) {
-    if (event.clipboardData) {
-      return event.clipboardData.getData("text/plain");
-    }
-    return "";
+  // --- Main ---
+
+  function formatLabel(data) {
+    var risk = (data.risk || "Unknown").replace(" Risk", "");
+    return "Payload Evaluated: " + risk;
   }
 
   function showTooltip(pastedText) {
     if (!document.body) return;
+    removeExisting();
 
-    var result = createTooltip("Evaluating\u2026", null);
-    var host = result.host;
-    var tip = result.tooltip;
+    var host = createTooltipHost();
+    var parts = buildTooltipShadow(host, "Evaluating\u2026", null);
 
     document.body.appendChild(host);
     currentTooltip = host;
-    positionHost(host);
+    clampToViewport(host, getTooltipPosition());
 
-    var destinationUrl = window.location.href;
-
-    if (pastedText) {
-      fetch(WORKER_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pastedText: pastedText,
-          destinationUrl: destinationUrl,
-        }),
-      })
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-          if (!host.parentNode) return;
-          var risk = (data.risk || "Unknown").replace(" Risk", "");
-          var label = "Payload Evaluated: " + risk;
-          updateTooltip(result, label, data.risk);
-          scheduleRemoval(host, tip);
-        })
-        .catch(function () {
-          if (!host.parentNode) return;
-          updateTooltip(result, "Payload Evaluated", null);
-          scheduleRemoval(host, tip);
-        });
-    } else {
-      updateTooltip(result, "Payload Evaluated", null);
-      scheduleRemoval(host, tip);
+    if (!pastedText) {
+      updateTooltip(parts, "Payload Evaluated", null);
+      scheduleRemoval(host, parts.tooltip);
+      return;
     }
+
+    fetch(WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pastedText: pastedText,
+        destinationUrl: window.location.href,
+      }),
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!host.parentNode) return;
+        updateTooltip(parts, formatLabel(data), data.risk);
+        clampToViewport(host, getTooltipPosition());
+        scheduleRemoval(host, parts.tooltip);
+      })
+      .catch(function () {
+        if (!host.parentNode) return;
+        updateTooltip(parts, "Payload Evaluated", null);
+        scheduleRemoval(host, parts.tooltip);
+      });
   }
 
   document.addEventListener("paste", function (event) {
-    var pastedText = getPastedText(event);
+    var pastedText = event.clipboardData
+      ? event.clipboardData.getData("text/plain")
+      : "";
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
         showTooltip(pastedText);
